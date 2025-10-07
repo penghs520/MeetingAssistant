@@ -119,30 +119,14 @@ export default function MeetingScreen({ navigation }: MeetingScreenProps) {
   };
 
   const handleStopMeeting = async () => {
-    const currentMeetingId = meetingId;
     try {
-      await MeetingService.stopMeeting();
+      // 先设置状态，避免返回拦截触发
       setIsRecording(false);
 
-      // 提示用户并导航到详情页
-      Alert.alert(
-        '会议已结束',
-        '正在生成会议总结，请稍候...',
-        [
-          {
-            text: '查看详情',
-            onPress: () => {
-              if (currentMeetingId) {
-                navigation.navigate('MeetingDetail', { meetingId: currentMeetingId });
-              }
-            },
-          },
-          {
-            text: '稍后查看',
-            style: 'cancel',
-          },
-        ]
-      );
+      await MeetingService.stopMeeting();
+
+      // 直接返回会议列表
+      navigation.goBack();
     } catch (error) {
       Alert.alert('停止失败', String(error));
     }

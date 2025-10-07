@@ -67,14 +67,23 @@ export class MeetingService {
       // 断开WebSocket
       WebSocketService.disconnect();
 
-      // 调用后端完成会议接口，生成总结
-      if (this.meetingId) {
+      const currentMeetingId = this.meetingId;
+      this.meetingId = null;
+
+      // 调用后端完成会议接口，生成总结（不阻塞，后台执行）
+      if (currentMeetingId) {
         console.log('Completing meeting and generating summary...');
-        await ApiService.completeMeeting(this.meetingId);
-        console.log('Meeting completed successfully');
+        // 使用 Promise 但不 await，避免阻塞用户操作
+        ApiService.completeMeeting(currentMeetingId)
+          .then(() => {
+            console.log('Meeting completed successfully');
+          })
+          .catch((error) => {
+            console.error('Failed to complete meeting:', error);
+            // 即使失败也不影响用户，会议会在列表加载时自动完成
+          });
       }
 
-      this.meetingId = null;
       console.log('Meeting stopped');
     } catch (error) {
       console.error('Failed to stop meeting:', error);
