@@ -81,6 +81,22 @@ public class MeetingService {
     }
 
     public List<Meeting> getAllMeetings() {
+        List<Meeting> meetings = meetingRepository.findAllByOrderByStartTimeDesc();
+
+        // 自动完成所有意外中断的会议（RECORDING 状态）
+        meetings.stream()
+            .filter(meeting -> meeting.getStatus() == Meeting.MeetingStatus.RECORDING)
+            .forEach(meeting -> {
+                log.warn("Found interrupted meeting {}: {}, auto-completing...",
+                    meeting.getId(), meeting.getTitle());
+                try {
+                    completeMeeting(meeting.getId());
+                } catch (Exception e) {
+                    log.error("Failed to auto-complete meeting {}", meeting.getId(), e);
+                }
+            });
+
+        // 重新获取会议列表（包含已完成的会议）
         return meetingRepository.findAllByOrderByStartTimeDesc();
     }
 
