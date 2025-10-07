@@ -39,13 +39,51 @@ export default function MeetingScreen({ navigation }: MeetingScreenProps) {
       Alert.alert('错误', error);
     });
 
+    // 拦截物理返回按钮
+    const backHandler = navigation.addListener('beforeRemove', (e) => {
+      if (!isRecording) {
+        // 未在录音，允许正常返回
+        return;
+      }
+
+      // 阻止默认行为
+      e.preventDefault();
+
+      // 提示用户
+      Alert.alert(
+        '会议正在进行中',
+        '确定要结束会议并返回吗？',
+        [
+          {
+            text: '取消',
+            style: 'cancel',
+          },
+          {
+            text: '结束会议',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await MeetingService.stopMeeting();
+                setIsRecording(false);
+                // 允许返回
+                navigation.dispatch(e.data.action);
+              } catch (error) {
+                Alert.alert('停止失败', String(error));
+              }
+            },
+          },
+        ]
+      );
+    });
+
     return () => {
+      backHandler();
       // 组件卸载时停止会议
       if (isRecording) {
         MeetingService.stopMeeting();
       }
     };
-  }, []);
+  }, [isRecording, navigation]);
 
   const requestAudioPermission = async () => {
     if (Platform.OS === 'android') {
