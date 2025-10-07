@@ -38,3 +38,13 @@ meeting:
     batch-size: 5
   websocket:
     max-connections: 100
+
+# AI Service Provider Configuration
+# 可选值: openai (使用 OpenAI Whisper API) 或 local-whisper (使用本地 Whisper)
+ai:
+  provider: local-whisper  # 切换到本地 Whisper
+
+# 本地 Whisper 服务配置
+whisper:
+  service:
+    url: http://localhost:5001
