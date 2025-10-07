@@ -135,6 +135,9 @@ public class AudioCaptureModule extends ReactContextBaseJavaModule implements Ac
                             mediaProjectionIntent
                         );
 
+                        // 等待MediaProjection完全初始化
+                        Thread.sleep(500);
+
                         audioCaptureService.setAudioDataCallback((base64Audio, length) -> {
                             WritableMap params = Arguments.createMap();
                             params.putString("audioData", base64Audio);

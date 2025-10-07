@@ -1,8 +1,8 @@
 import AudioCaptureService, { AudioDataEvent } from '../modules/AudioCapture';
 import WebSocketService, { TranscriptMessage } from './WebSocketService';
 
-const WEBSOCKET_URL = 'ws://10.0.2.2:8080/ws/audio-stream'; // Android模拟器
-// const WEBSOCKET_URL = 'ws://your-server-ip:8080/ws/audio-stream'; // 真机使用
+// const WEBSOCKET_URL = 'ws://10.0.2.2:8080/ws/audio-stream'; // Android模拟器
+const WEBSOCKET_URL = 'ws://192.168.207.210:8080/ws/audio-stream'; // 真机使用
 
 export interface Transcript {
   id: number;

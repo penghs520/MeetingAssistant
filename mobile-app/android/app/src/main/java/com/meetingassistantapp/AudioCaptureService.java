@@ -95,21 +95,9 @@ public class AudioCaptureService extends Service {
     }
 
     public void startRecording() throws Exception {
-        if (mediaProjection == null) {
-            throw new Exception("MediaProjection未初始化");
-        }
-
         if (isRecording) {
             throw new Exception("已在录音中");
         }
-
-        // 配置音频捕获
-        AudioPlaybackCaptureConfiguration config =
-            new AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
-                .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
-                .addMatchingUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
-                .build();
 
         AudioFormat audioFormat = new AudioFormat.Builder()
             .setEncoding(AUDIO_FORMAT)
@@ -118,14 +106,64 @@ public class AudioCaptureService extends Service {
             .build();
 
         int bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT);
+        android.util.Log.d("AudioCaptureService", "Buffer size: " + bufferSize);
 
-        audioRecord = new AudioRecord.Builder()
-            .setAudioFormat(audioFormat)
-            .setBufferSizeInBytes(bufferSize)
-            .setAudioPlaybackCaptureConfig(config)
-            .build();
+        boolean usePlaybackCapture = false;
 
-        audioRecord.startRecording();
+        // 尝试使用AudioPlaybackCapture（系统音频捕获）
+        if (mediaProjection != null) {
+            try {
+                android.util.Log.d("AudioCaptureService", "Attempting AudioPlaybackCapture with MediaProjection");
+
+                AudioPlaybackCaptureConfiguration.Builder configBuilder =
+                    new AudioPlaybackCaptureConfiguration.Builder(mediaProjection);
+
+                configBuilder.addMatchingUsage(AudioAttributes.USAGE_UNKNOWN);
+                configBuilder.addMatchingUsage(AudioAttributes.USAGE_MEDIA);
+                configBuilder.addMatchingUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION);
+                configBuilder.addMatchingUsage(AudioAttributes.USAGE_GAME);
+
+                AudioPlaybackCaptureConfiguration config = configBuilder.build();
+
+                audioRecord = new AudioRecord.Builder()
+                    .setAudioFormat(audioFormat)
+                    .setBufferSizeInBytes(bufferSize)
+                    .setAudioPlaybackCaptureConfig(config)
+                    .build();
+
+                audioRecord.startRecording();
+                usePlaybackCapture = true;
+                android.util.Log.i("AudioCaptureService", "AudioPlaybackCapture started successfully");
+            } catch (Exception e) {
+                android.util.Log.w("AudioCaptureService", "AudioPlaybackCapture failed, falling back to microphone: " + e.getMessage());
+                if (audioRecord != null) {
+                    try {
+                        audioRecord.release();
+                    } catch (Exception ignored) {}
+                    audioRecord = null;
+                }
+            }
+        }
+
+        // 降级到麦克风录音
+        if (!usePlaybackCapture) {
+            try {
+                android.util.Log.d("AudioCaptureService", "Using microphone recording as fallback");
+
+                audioRecord = new AudioRecord.Builder()
+                    .setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
+                    .setAudioFormat(audioFormat)
+                    .setBufferSizeInBytes(bufferSize)
+                    .build();
+
+                audioRecord.startRecording();
+                android.util.Log.i("AudioCaptureService", "Microphone recording started successfully");
+            } catch (Exception e) {
+                android.util.Log.e("AudioCaptureService", "Failed to start microphone recording", e);
+                throw new Exception("无法启动录音（系统音频捕获和麦克风均失败）: " + e.getMessage());
+            }
+        }
+
         isRecording = true;
 
         // 启动录音线程
