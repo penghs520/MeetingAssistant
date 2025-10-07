@@ -121,12 +121,6 @@ export default function MeetingDetailScreen({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.navigate('MeetingList')}
-        >
-          <Text style={styles.backButtonText}>← 返回列表</Text>
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>会议详情</Text>
       </View>
 
@@ -212,16 +206,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
     padding: 20,
     paddingTop: 50,
-    flexDirection: 'row',
     alignItems: 'center',
-  },
-  backButton: {
-    marginRight: 15,
-  },
-  backButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   headerTitle: {
     fontSize: 20,
