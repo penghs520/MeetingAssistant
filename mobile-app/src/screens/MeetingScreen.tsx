@@ -75,9 +75,19 @@ export default function MeetingScreen({ navigation }: MeetingScreenProps) {
                       text: '查看详情',
                       onPress: () => {
                         if (completedMeetingId) {
-                          navigation.navigate('MeetingDetail', { meetingId: completedMeetingId });
+                          // 重置导航栈，移除会议页，跳转到详情页
+                          navigation.reset({
+                            index: 1,
+                            routes: [
+                              { name: 'MeetingList' },
+                              { name: 'MeetingDetail', params: { meetingId: completedMeetingId } },
+                            ],
+                          });
                         } else {
-                          navigation.dispatch(e.data.action);
+                          navigation.reset({
+                            index: 0,
+                            routes: [{ name: 'MeetingList' }],
+                          });
                         }
                       },
                     },
@@ -85,14 +95,21 @@ export default function MeetingScreen({ navigation }: MeetingScreenProps) {
                       text: '返回列表',
                       style: 'cancel',
                       onPress: () => {
-                        navigation.dispatch(e.data.action);
+                        // 重置导航栈，只保留列表页
+                        navigation.reset({
+                          index: 0,
+                          routes: [{ name: 'MeetingList' }],
+                        });
                       },
                     },
                   ]
                 );
               } catch (error) {
                 Alert.alert('停止失败', String(error));
-                navigation.dispatch(e.data.action);
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'MeetingList' }],
+                });
               }
             },
           },
@@ -158,9 +175,16 @@ export default function MeetingScreen({ navigation }: MeetingScreenProps) {
             text: '查看详情',
             onPress: () => {
               if (completedMeetingId) {
-                navigation.navigate('MeetingDetail', { meetingId: completedMeetingId });
+                // 重置导航栈，移除会议页，跳转到详情页
+                navigation.reset({
+                  index: 1,
+                  routes: [
+                    { name: 'MeetingList' },
+                    { name: 'MeetingDetail', params: { meetingId: completedMeetingId } },
+                  ],
+                });
               } else {
-                navigation.goBack();
+                navigation.navigate('MeetingList');
               }
             },
           },
@@ -168,15 +192,22 @@ export default function MeetingScreen({ navigation }: MeetingScreenProps) {
             text: '返回列表',
             style: 'cancel',
             onPress: () => {
-              navigation.goBack();
+              // 重置导航栈，只保留列表页
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'MeetingList' }],
+              });
             },
           },
         ]
       );
     } catch (error) {
       Alert.alert('停止失败', String(error));
-      // 失败后也返回列表
-      navigation.goBack();
+      // 失败后也重置到列表页
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MeetingList' }],
+      });
     }
   };
 
