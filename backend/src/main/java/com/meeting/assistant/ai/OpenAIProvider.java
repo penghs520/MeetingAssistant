@@ -1,6 +1,7 @@
 package com.meeting.assistant.ai;
 
 import com.meeting.assistant.entity.Speaker;
+import com.meeting.assistant.util.AudioUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,12 +39,13 @@ public class OpenAIProvider implements AIService {
 
     @Override
     public String transcribe(byte[] audioData) {
-        log.info("Transcribing audio with Whisper API, size: {} bytes", audioData.length);
-
-        if (true){
-            return "音频转文本成功";
-        }
+        log.info("Transcribing audio with Whisper API, PCM size: {} bytes", audioData.length);
         try {
+            // 将 PCM 数据转换为 WAV 格式
+            // Android 端: 16kHz, Mono, 16-bit PCM
+            byte[] wavData = AudioUtils.pcmToWav(audioData, 16000, 1, 16);
+            log.info("Converted PCM to WAV, WAV size: {} bytes", wavData.length);
+
             // 构建请求头
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
@@ -51,7 +53,7 @@ public class OpenAIProvider implements AIService {
 
             // 构建请求体
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("file", new org.springframework.core.io.ByteArrayResource(audioData) {
+            body.add("file", new org.springframework.core.io.ByteArrayResource(wavData) {
                 @Override
                 public String getFilename() {
                     return "audio.wav";
@@ -73,7 +75,7 @@ public class OpenAIProvider implements AIService {
 
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 String text = (String) response.getBody().get("text");
-                log.info("Transcription completed, length: {}", text.length());
+                log.info("Transcription completed, text length: {}", text.length());
                 return text;
             } else {
                 throw new RuntimeException("Whisper API returned unexpected response");
@@ -87,10 +89,6 @@ public class OpenAIProvider implements AIService {
     @Override
     public String summarize(String transcript, List<Speaker> speakers) {
         log.info("Generating meeting summary with GPT-4o");
-
-        if (true){
-            return "会议总结成功";
-        }
 
         String speakerNames = speakers.stream()
             .map(Speaker::getName)
