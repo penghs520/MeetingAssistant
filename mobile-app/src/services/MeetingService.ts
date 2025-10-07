@@ -47,7 +47,7 @@ export class MeetingService {
   }
 
   /**
-   * 停止会议
+   * 结束会议
    */
   async stopMeeting(): Promise<number | null> {
     try {

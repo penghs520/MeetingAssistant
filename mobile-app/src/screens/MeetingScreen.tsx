@@ -119,7 +119,7 @@ export default function MeetingScreen({ navigation }: MeetingScreenProps) {
 
     return () => {
       backHandler();
-      // 组件卸载时停止会议
+      // 组件卸载时结束会议
       if (isRecording) {
         MeetingService.stopMeeting();
       }
@@ -282,7 +282,7 @@ export default function MeetingScreen({ navigation }: MeetingScreenProps) {
           activeOpacity={0.8}
         >
           <Text style={styles.buttonText}>
-            {isRecording ? '停止会议' : '开始会议'}
+            {isRecording ? '结束会议' : '开始会议'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -301,7 +301,7 @@ export default function MeetingScreen({ navigation }: MeetingScreenProps) {
             3. 系统将自动捕获并转录音频
           </Text>
           <Text style={styles.instructionText}>
-            4. 会议结束后点击"停止会议"
+            4. 会议结束后点击"结束会议"
           </Text>
         </View>
       )}
