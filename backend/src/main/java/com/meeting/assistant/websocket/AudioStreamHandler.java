@@ -29,6 +29,44 @@ public class AudioStreamHandler extends BinaryWebSocketHandler {
     private final ObjectMapper objectMapper;
     private final Map<String, Long> sessionMeetingMap = new ConcurrentHashMap<>();
 
+    // 音频缓冲：每个session一个缓冲区
+    private final Map<String, AudioBuffer> sessionAudioBuffers = new ConcurrentHashMap<>();
+
+    // 缓冲配置
+    private static final int BUFFER_SIZE_BYTES = 32000; // 约2秒的音频（16kHz, 16bit, mono）
+    private static final long BUFFER_TIMEOUT_MS = 3000; // 3秒超时
+
+    // 音频缓冲类
+    private static class AudioBuffer {
+        private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AudioBuffer.class);
+        private final java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+        private long lastFlushTime = System.currentTimeMillis();
+
+        public synchronized void append(byte[] data) {
+            try {
+                buffer.write(data);
+            } catch (Exception e) {
+                log.error("Error appending to buffer", e);
+            }
+        }
+
+        public synchronized byte[] getAndClear() {
+            byte[] data = buffer.toByteArray();
+            buffer.reset();
+            lastFlushTime = System.currentTimeMillis();
+            return data;
+        }
+
+        public synchronized boolean shouldFlush() {
+            return buffer.size() >= BUFFER_SIZE_BYTES ||
+                   (System.currentTimeMillis() - lastFlushTime) > BUFFER_TIMEOUT_MS;
+        }
+
+        public synchronized int size() {
+            return buffer.size();
+        }
+    }
+
     public AudioStreamHandler(AIService aiService,
                             TranscriptionService transcriptionService,
                             MeetingService meetingService,
@@ -68,8 +106,21 @@ public class AudioStreamHandler extends BinaryWebSocketHandler {
     }
 
     @Override
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) {
+        // 接收base64编码的音频数据
+        String base64Audio = message.getPayload();
+        byte[] audioData = java.util.Base64.getDecoder().decode(base64Audio);
+
+        processAudioData(session, audioData);
+    }
+
+    @Override
     protected void handleBinaryMessage(WebSocketSession session, BinaryMessage message) {
         byte[] audioData = message.getPayload().array();
+        processAudioData(session, audioData);
+    }
+
+    private void processAudioData(WebSocketSession session, byte[] audioData) {
         Long meetingId = sessionMeetingMap.get(session.getId());
 
         if (meetingId == null) {
@@ -77,52 +128,70 @@ public class AudioStreamHandler extends BinaryWebSocketHandler {
             return;
         }
 
-        log.info("Received audio data from session {}, size: {} bytes", session.getId(), audioData.length);
+        // 获取或创建该session的缓冲区
+        AudioBuffer audioBuffer = sessionAudioBuffers.computeIfAbsent(
+            session.getId(),
+            k -> new AudioBuffer()
+        );
 
-        // 异步处理音频转录
-        CompletableFuture.runAsync(() -> {
-            try {
-                // 调用AI转录
-                String text = aiService.transcribe(audioData);
+        // 将数据添加到缓冲区
+        audioBuffer.append(audioData);
 
-                // 保存转录结果
-                Transcript transcript = transcriptionService.saveTranscript(
-                    meetingId,
-                    text,
-                    LocalDateTime.now()
-                );
+        log.debug("Received audio data from session {}, size: {} bytes, buffer total: {} bytes",
+            session.getId(), audioData.length, audioBuffer.size());
 
-                // 构建响应
-                Map<String, Object> response = Map.of(
-                    "type", "transcript",
-                    "id", transcript.getId(),
-                    "content", text,
-                    "timestamp", transcript.getTimestamp().toString(),
-                    "speakerId", transcript.getSpeaker() != null ? transcript.getSpeaker().getId() : null
-                );
+        // 检查是否应该刷新缓冲区
+        if (audioBuffer.shouldFlush()) {
+            byte[] bufferedAudio = audioBuffer.getAndClear();
+            log.info("Flushing audio buffer for session {}, size: {} bytes", session.getId(), bufferedAudio.length);
 
-                // 推送给客户端
-                session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
-                log.info("Transcript sent to session {}", session.getId());
-
-            } catch (Exception e) {
-                log.error("Error processing audio", e);
+            // 异步处理音频转录
+            CompletableFuture.runAsync(() -> {
                 try {
-                    Map<String, Object> errorResponse = Map.of(
-                        "type", "error",
-                        "message", "转录失败: " + e.getMessage()
+                    // 调用AI转录
+                    String text = aiService.transcribe(bufferedAudio);
+
+                    // 保存转录结果
+                    Transcript transcript = transcriptionService.saveTranscript(
+                        meetingId,
+                        text,
+                        LocalDateTime.now()
                     );
-                    session.sendMessage(new TextMessage(objectMapper.writeValueAsString(errorResponse)));
-                } catch (Exception ex) {
-                    log.error("Error sending error message", ex);
+
+                    // 构建响应
+                    Map<String, Object> response = new java.util.HashMap<>();
+                    response.put("type", "transcript");
+                    response.put("id", transcript.getId());
+                    response.put("content", text);
+                    response.put("timestamp", transcript.getTimestamp().toString());
+                    response.put("speakerId", transcript.getSpeaker() != null ? transcript.getSpeaker().getId() : null);
+
+                    // 推送给客户端
+                    session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
+                    log.info("Transcript sent to session {}", session.getId());
+
+                } catch (Exception e) {
+                    log.error("Error processing audio", e);
+                    try {
+                        Map<String, Object> errorResponse = Map.of(
+                            "type", "error",
+                            "message", "转录失败: " + e.getMessage()
+                        );
+                        session.sendMessage(new TextMessage(objectMapper.writeValueAsString(errorResponse)));
+                    } catch (Exception ex) {
+                        log.error("Error sending error message", ex);
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         log.info("WebSocket connection closed: {}, status: {}", session.getId(), status);
+
+        // 清理缓冲区
+        sessionAudioBuffers.remove(session.getId());
         sessionMeetingMap.remove(session.getId());
     }
 

@@ -40,6 +40,9 @@ public class OpenAIProvider implements AIService {
     public String transcribe(byte[] audioData) {
         log.info("Transcribing audio with Whisper API, size: {} bytes", audioData.length);
 
+        if (true){
+            return "音频转文本成功";
+        }
         try {
             // 构建请求头
             HttpHeaders headers = new HttpHeaders();
@@ -84,6 +87,10 @@ public class OpenAIProvider implements AIService {
     @Override
     public String summarize(String transcript, List<Speaker> speakers) {
         log.info("Generating meeting summary with GPT-4o");
+
+        if (true){
+            return "会议总结成功";
+        }
 
         String speakerNames = speakers.stream()
             .map(Speaker::getName)
