@@ -19,8 +19,8 @@ spring:
 
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY}
-      base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+      api-key: ${OPENAI_API_KEY:sk-hEwC6GUhHQqiHO8iD647BdC1F5344aAaB44452FeA282827a}
+      base-url: ${OPENAI_BASE_URL:https://aihubmix.com}
       chat:
         options:
           model: gpt-4o

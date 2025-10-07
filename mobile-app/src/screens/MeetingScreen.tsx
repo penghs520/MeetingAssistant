@@ -95,6 +95,22 @@ export default function MeetingScreen() {
     });
   };
 
+  // 格式化转录文本显示
+  const formatTranscripts = (transcripts: Transcript[]) => {
+    return transcripts.map((transcript) => {
+      const speakerId = transcript.speakerId;
+      const speaker = speakerId ? `说话人${speakerId}` : '未知说话人';
+
+      return {
+        id: transcript.id,
+        speakerId,
+        speaker,
+        timestamp: transcript.timestamp,
+        content: transcript.content,
+      };
+    });
+  };
+
   return (
     <View style={styles.container}>
       {/* 头部信息 */}
@@ -119,12 +135,12 @@ export default function MeetingScreen() {
             {isRecording ? '等待转录结果...' : '点击开始按钮启动会议'}
           </Text>
         ) : (
-          transcripts.map((transcript) => (
-            <View key={transcript.id} style={styles.transcriptItem}>
-              <Text style={styles.timestamp}>
-                {formatTime(transcript.timestamp)}
+          formatTranscripts(transcripts).map((item) => (
+            <View key={item.id} style={styles.transcriptItem}>
+              <Text style={styles.speakerHeader}>
+                @{item.speaker}  {formatTime(item.timestamp)}
               </Text>
-              <Text style={styles.transcriptText}>{transcript.content}</Text>
+              <Text style={styles.transcriptText}>{item.content}</Text>
             </View>
           ))
         )}
@@ -209,17 +225,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   transcriptItem: {
-    marginBottom: 15,
-    padding: 12,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#4CAF50',
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
-  timestamp: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 5,
+  speakerHeader: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: '600',
+    marginBottom: 8,
   },
   transcriptText: {
     fontSize: 16,
