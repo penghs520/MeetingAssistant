@@ -83,7 +83,8 @@ def transcribe():
             temperature=0.0,       # 使用贪婪解码（更确定性）
             compression_ratio_threshold=2.4,  # 压缩率阈值
             logprob_threshold=-1.0,           # 对数概率阈值
-            no_speech_threshold=0.6           # 静音检测阈值
+            no_speech_threshold=0.7,          # 提高到0.7，更严格地过滤背景噪音（默认0.6）
+            condition_on_previous_text=True   # 基于上下文改进识别
         )
 
         transcribed_text = result['text'].strip()

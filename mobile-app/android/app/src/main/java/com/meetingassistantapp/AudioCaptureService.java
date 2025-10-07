@@ -42,16 +42,10 @@ public class AudioCaptureService extends Service {
     private boolean isRecording = false;
     private AudioDataCallback callback;
 
-    // VAD (Voice Activity Detection) 参数
-    private static final int SILENCE_THRESHOLD = 800;      // 静音振幅阈值
-    private static final int SILENCE_DURATION_MS = 800;    // 静音持续时间（毫秒）
-    private static final int MIN_AUDIO_LENGTH_MS = 300;    // 最小音频长度（毫秒），过滤短暂噪音（降低以避免误过滤短句）
-    private static final int MIN_ENERGY_THRESHOLD = 500;   // 最小能量阈值，过滤低能量噪音（降低以避免误过滤正常说话）
-
-    private long lastSoundTime = System.currentTimeMillis();
-    private long speechStartTime = 0;                      // 开始说话的时间
-    private boolean isSpeaking = false;                    // 是否正在说话
+    // 音频分段参数（移除 VAD，让 Whisper 自己处理噪音检测）
+    private static final int SEGMENT_DURATION_MS = 300;   // 每0.3秒发送一次音频
     private java.util.List<byte[]> audioBuffer = new java.util.ArrayList<>();
+    private long segmentStartTime = System.currentTimeMillis();
 
     private final IBinder binder = new LocalBinder();
 
@@ -176,8 +170,9 @@ public class AudioCaptureService extends Service {
         }
 
         isRecording = true;
+        segmentStartTime = System.currentTimeMillis();
 
-        // 启动录音线程（带 VAD 检测）
+        // 启动录音线程（固定时间间隔发送，无 VAD）
         recordingThread = new Thread(() -> {
             byte[] buffer = new byte[bufferSize];
             while (isRecording) {
@@ -189,12 +184,12 @@ public class AudioCaptureService extends Service {
                     // 添加到缓冲区
                     audioBuffer.add(audioData);
 
-                    // 检测是否为静音
-                    boolean isSilence = detectSilence(audioData);
-
-                    if (isSilence) {
-                        // 检测到静音停顿，发送缓冲区的所有音频
+                    // 检查是否达到分段时间
+                    long currentDuration = System.currentTimeMillis() - segmentStartTime;
+                    if (currentDuration >= SEGMENT_DURATION_MS) {
+                        // 发送缓冲区的音频
                         flushAudioBuffer();
+                        segmentStartTime = System.currentTimeMillis();
                     }
                 }
             }
@@ -203,65 +198,10 @@ public class AudioCaptureService extends Service {
     }
 
     /**
-     * 检测音频数据是否为静音
-     * @param audioData 16-bit PCM 音频数据
-     * @return true 如果持续静音超过阈值时间
-     */
-    private boolean detectSilence(byte[] audioData) {
-        // 计算音频振幅（16-bit PCM）
-        long sum = 0;
-        for (int i = 0; i < audioData.length - 1; i += 2) {
-            // 将两个字节合并为一个 16-bit 采样值
-            int sample = (audioData[i] & 0xFF) | (audioData[i + 1] << 8);
-            sum += Math.abs(sample);
-        }
-        long avgAmplitude = sum / (audioData.length / 2);
-
-        // 判断是否有声音（超过静音阈值）
-        if (avgAmplitude > SILENCE_THRESHOLD) {
-            // 记录说话开始时间
-            if (!isSpeaking) {
-                isSpeaking = true;
-                speechStartTime = System.currentTimeMillis();
-                android.util.Log.d("AudioCaptureService", "Speech started, amplitude: " + avgAmplitude);
-            }
-            lastSoundTime = System.currentTimeMillis();
-            return false;
-        }
-
-        // 当前是静音
-        if (isSpeaking) {
-            // 检查静音持续时间
-            long silenceDuration = System.currentTimeMillis() - lastSoundTime;
-            if (silenceDuration >= SILENCE_DURATION_MS) {
-                // 说话结束，检查是否为有效语音（非噪音）
-                long speechDuration = System.currentTimeMillis() - speechStartTime;
-                android.util.Log.d("AudioCaptureService", "Speech ended, duration: " + speechDuration + "ms");
-
-                isSpeaking = false;
-                return true;  // 静音结束，触发发送
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * 发送缓冲区中的所有音频数据（带噪音过滤）
+     * 发送缓冲区中的所有音频数据（无过滤，交给 Whisper 处理）
      */
     private void flushAudioBuffer() {
         if (audioBuffer.isEmpty()) {
-            return;
-        }
-
-        // 计算说话总时长
-        long speechDuration = System.currentTimeMillis() - speechStartTime;
-
-        // 只过滤非常短的音频（如单次咳嗽、敲击声），避免误过滤正常说话
-        if (speechDuration < MIN_AUDIO_LENGTH_MS) {
-            android.util.Log.d("AudioCaptureService",
-                "Discarded short audio (noise): " + speechDuration + "ms < " + MIN_AUDIO_LENGTH_MS + "ms");
-            audioBuffer.clear();
             return;
         }
 
@@ -280,22 +220,15 @@ public class AudioCaptureService extends Service {
                 offset += data.length;
             }
 
-            // 计算平均能量（用于日志，不用于过滤）
-            long totalEnergy = 0;
-            for (int i = 0; i < combined.length - 1; i += 2) {
-                int sample = (combined[i] & 0xFF) | (combined[i + 1] << 8);
-                totalEnergy += Math.abs(sample);
-            }
-            long avgEnergy = totalEnergy / (combined.length / 2);
-
             // Base64 编码并发送
             String base64Audio = Base64.getEncoder().encodeToString(combined);
             if (callback != null) {
                 callback.onAudioData(base64Audio, totalLength);
             }
 
+            long durationMs = (totalLength * 1000L) / (SAMPLE_RATE * 2); // 16-bit = 2 bytes per sample
             android.util.Log.d("AudioCaptureService",
-                "Sent audio: " + totalLength + " bytes, duration: " + speechDuration + "ms, energy: " + avgEnergy);
+                "Sent audio segment: " + totalLength + " bytes, ~" + durationMs + "ms");
         }
 
         // 清空缓冲区
