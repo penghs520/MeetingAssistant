@@ -49,7 +49,7 @@ export class MeetingService {
   /**
    * 停止会议
    */
-  async stopMeeting(): Promise<void> {
+  async stopMeeting(): Promise<number | null> {
     try {
       this.isRecording = false;
 
@@ -70,21 +70,15 @@ export class MeetingService {
       const currentMeetingId = this.meetingId;
       this.meetingId = null;
 
-      // 调用后端完成会议接口，生成总结（不阻塞，后台执行）
+      // 调用后端完成会议接口，生成总结（同步等待）
       if (currentMeetingId) {
         console.log('Completing meeting and generating summary...');
-        // 使用 Promise 但不 await，避免阻塞用户操作
-        ApiService.completeMeeting(currentMeetingId)
-          .then(() => {
-            console.log('Meeting completed successfully');
-          })
-          .catch((error) => {
-            console.error('Failed to complete meeting:', error);
-            // 即使失败也不影响用户，会议会在列表加载时自动完成
-          });
+        await ApiService.completeMeeting(currentMeetingId);
+        console.log('Meeting completed successfully');
       }
 
       console.log('Meeting stopped');
+      return currentMeetingId;
     } catch (error) {
       console.error('Failed to stop meeting:', error);
       throw error;

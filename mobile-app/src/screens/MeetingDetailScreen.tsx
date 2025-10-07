@@ -123,9 +123,9 @@ export default function MeetingDetailScreen({
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => navigation.navigate('MeetingList')}
         >
-          <Text style={styles.backButtonText}>← 返回</Text>
+          <Text style={styles.backButtonText}>← 返回列表</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>会议详情</Text>
       </View>

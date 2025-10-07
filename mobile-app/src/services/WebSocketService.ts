@@ -173,6 +173,11 @@ export class WebSocketService {
    * 断开连接
    */
   disconnect(): void {
+    // 清空回调，防止断开时触发错误提示
+    this.onErrorCallback = null;
+    this.onTranscriptCallback = null;
+    this.onConnectedCallback = null;
+
     if (this.ws) {
       this.ws.close();
       this.ws = null;

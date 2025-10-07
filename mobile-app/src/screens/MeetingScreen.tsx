@@ -63,12 +63,36 @@ export default function MeetingScreen({ navigation }: MeetingScreenProps) {
             style: 'destructive',
             onPress: async () => {
               try {
-                await MeetingService.stopMeeting();
                 setIsRecording(false);
-                // 允许返回
-                navigation.dispatch(e.data.action);
+                const completedMeetingId = await MeetingService.stopMeeting();
+
+                // 提示成功并跳转详情
+                Alert.alert(
+                  '会议已结束',
+                  '会议总结已生成',
+                  [
+                    {
+                      text: '查看详情',
+                      onPress: () => {
+                        if (completedMeetingId) {
+                          navigation.navigate('MeetingDetail', { meetingId: completedMeetingId });
+                        } else {
+                          navigation.dispatch(e.data.action);
+                        }
+                      },
+                    },
+                    {
+                      text: '返回列表',
+                      style: 'cancel',
+                      onPress: () => {
+                        navigation.dispatch(e.data.action);
+                      },
+                    },
+                  ]
+                );
               } catch (error) {
                 Alert.alert('停止失败', String(error));
+                navigation.dispatch(e.data.action);
               }
             },
           },
@@ -123,12 +147,36 @@ export default function MeetingScreen({ navigation }: MeetingScreenProps) {
       // 先设置状态，避免返回拦截触发
       setIsRecording(false);
 
-      await MeetingService.stopMeeting();
+      const completedMeetingId = await MeetingService.stopMeeting();
 
-      // 直接返回会议列表
-      navigation.goBack();
+      // 提示成功
+      Alert.alert(
+        '会议已结束',
+        '会议总结已生成',
+        [
+          {
+            text: '查看详情',
+            onPress: () => {
+              if (completedMeetingId) {
+                navigation.navigate('MeetingDetail', { meetingId: completedMeetingId });
+              } else {
+                navigation.goBack();
+              }
+            },
+          },
+          {
+            text: '返回列表',
+            style: 'cancel',
+            onPress: () => {
+              navigation.goBack();
+            },
+          },
+        ]
+      );
     } catch (error) {
       Alert.alert('停止失败', String(error));
+      // 失败后也返回列表
+      navigation.goBack();
     }
   };
 
