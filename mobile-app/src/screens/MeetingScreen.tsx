@@ -11,7 +11,11 @@ import {
 } from 'react-native';
 import MeetingService, { Transcript } from '../services/MeetingService';
 
-export default function MeetingScreen() {
+interface MeetingScreenProps {
+  navigation: any;
+}
+
+export default function MeetingScreen({ navigation }: MeetingScreenProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [meetingId, setMeetingId] = useState<number | null>(null);
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
@@ -77,10 +81,30 @@ export default function MeetingScreen() {
   };
 
   const handleStopMeeting = async () => {
+    const currentMeetingId = meetingId;
     try {
       await MeetingService.stopMeeting();
       setIsRecording(false);
-      Alert.alert('会议已结束', '转录内容已保存');
+
+      // 提示用户并导航到详情页
+      Alert.alert(
+        '会议已结束',
+        '正在生成会议总结，请稍候...',
+        [
+          {
+            text: '查看详情',
+            onPress: () => {
+              if (currentMeetingId) {
+                navigation.navigate('MeetingDetail', { meetingId: currentMeetingId });
+              }
+            },
+          },
+          {
+            text: '稍后查看',
+            style: 'cancel',
+          },
+        ]
+      );
     } catch (error) {
       Alert.alert('停止失败', String(error));
     }

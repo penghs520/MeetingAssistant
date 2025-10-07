@@ -50,8 +50,8 @@ export default function MeetingListScreen({ navigation }: MeetingListScreenProps
       const data = await response.json();
       setMeetings(data);
 
-      // 检查是否有进行中的会议
-      const ongoing = data.some((meeting: Meeting) => meeting.status === 'IN_PROGRESS');
+      // 检查是否有进行中的会议（RECORDING 状态）
+      const ongoing = data.some((meeting: Meeting) => meeting.status === 'RECORDING');
       setHasOngoingMeeting(ongoing);
     } catch (error) {
       Alert.alert('加载失败', String(error));
@@ -100,8 +100,8 @@ export default function MeetingListScreen({ navigation }: MeetingListScreenProps
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'IN_PROGRESS':
-        return '进行中';
+      case 'RECORDING':
+        return '录音中';
       case 'COMPLETED':
         return '已完成';
       default:
@@ -111,7 +111,7 @@ export default function MeetingListScreen({ navigation }: MeetingListScreenProps
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'IN_PROGRESS':
+      case 'RECORDING':
         return '#4CAF50';
       case 'COMPLETED':
         return '#2196F3';

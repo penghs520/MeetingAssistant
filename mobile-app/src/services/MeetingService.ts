@@ -1,5 +1,6 @@
 import AudioCaptureService, { AudioDataEvent } from '../modules/AudioCapture';
 import WebSocketService, { TranscriptMessage } from './WebSocketService';
+import ApiService from './ApiService';
 
 // const WEBSOCKET_URL = 'ws://10.0.2.2:8080/ws/audio-stream'; // Android模拟器
 const WEBSOCKET_URL = 'ws://192.168.207.210:8080/ws/audio-stream'; // 真机使用
@@ -65,6 +66,13 @@ export class MeetingService {
 
       // 断开WebSocket
       WebSocketService.disconnect();
+
+      // 调用后端完成会议接口，生成总结
+      if (this.meetingId) {
+        console.log('Completing meeting and generating summary...');
+        await ApiService.completeMeeting(this.meetingId);
+        console.log('Meeting completed successfully');
+      }
 
       this.meetingId = null;
       console.log('Meeting stopped');
