@@ -92,7 +92,7 @@ export default function MeetingScreen({ navigation }: MeetingScreenProps) {
                       },
                     },
                     {
-                      text: '返回列表',
+                      text: '返回',
                       style: 'cancel',
                       onPress: () => {
                         // 重置导航栈，只保留列表页
@@ -153,7 +153,7 @@ export default function MeetingScreen({ navigation }: MeetingScreenProps) {
       const id = await MeetingService.startMeeting();
       setMeetingId(id);
       setIsRecording(true);
-      Alert.alert('会议已开始', `会议ID: ${id}`);
+      console.log('Meeting started:', id);
     } catch (error) {
       Alert.alert('启动失败', String(error));
     }
@@ -189,7 +189,7 @@ export default function MeetingScreen({ navigation }: MeetingScreenProps) {
             },
           },
           {
-            text: '返回列表',
+            text: '返回',
             style: 'cancel',
             onPress: () => {
               // 重置导航栈，只保留列表页
