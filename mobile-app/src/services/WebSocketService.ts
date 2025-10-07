@@ -80,28 +80,69 @@ export class WebSocketService {
 
       this.ws.onerror = (error) => {
         console.error('WebSocket error:', error);
+        console.error('Error type:', typeof error);
+        console.error('Error details:', JSON.stringify(error));
         reject(error);
       };
 
-      this.ws.onclose = () => {
+      this.ws.onclose = (event) => {
         console.log('WebSocket closed');
+        console.log('Close code:', event.code);
+        console.log('Close reason:', event.reason);
+        console.log('Was clean:', event.wasClean);
         this.attemptReconnect(serverUrl, meetingId);
       };
     });
   }
 
   /**
-   * 发送音频数据
+   * 发送音频数据（Base64编码的音频数据数组）
    */
-  sendAudio(audioData: string): void {
+  sendAudio(audioDataArray: string[]): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      // 将Base64字符串转换为ArrayBuffer
-      const binaryString = atob(audioData);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
+      try {
+        // 计算总长度
+        let totalLength = 0;
+        const decodedArrays: Uint8Array[] = [];
+
+        // 将所有Base64字符串解码为字节数组
+        for (const audioData of audioDataArray) {
+          try {
+            const binaryString = atob(audioData);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            decodedArrays.push(bytes);
+            totalLength += bytes.length;
+          } catch (error) {
+            console.error('Failed to decode audio data:', error);
+            console.error('Invalid base64 string length:', audioData.length);
+            console.error('First 50 chars:', audioData.substring(0, 50));
+            // 跳过这个损坏的数据块，继续处理其他的
+            continue;
+          }
+        }
+
+        if (decodedArrays.length === 0) {
+          console.warn('No valid audio data to send');
+          return;
+        }
+
+        // 合并所有字节数组
+        const combined = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const arr of decodedArrays) {
+          combined.set(arr, offset);
+          offset += arr.length;
+        }
+
+        // 发送合并后的数据
+        console.log(`Sending ${totalLength} bytes of audio data (${decodedArrays.length} chunks)`);
+        this.ws.send(combined.buffer);
+      } catch (error) {
+        console.error('Error sending audio data:', error);
       }
-      this.ws.send(bytes.buffer);
     } else {
       console.warn('WebSocket not connected, cannot send audio');
     }

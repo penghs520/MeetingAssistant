@@ -15,7 +15,7 @@ export class MeetingService {
   private meetingId: number | null = null;
   private isRecording = false;
   private audioBuffer: string[] = [];
-  private bufferSize = 3; // 缓冲3段音频再发送（约3秒）
+  private bufferSize = 10; // 缓冲10段音频再发送（约1秒）
 
   /**
    * 开始新会议
@@ -101,11 +101,15 @@ export class MeetingService {
   private handleAudioData(event: AudioDataEvent): void {
     if (!this.isRecording) return;
 
+    console.log(`Received audio chunk, length: ${event.length}, base64 length: ${event.audioData.length}`);
+
     // 添加到缓冲区
     this.audioBuffer.push(event.audioData);
+    console.log(`Buffer size: ${this.audioBuffer.length}/${this.bufferSize}`);
 
     // 当缓冲区满时发送
     if (this.audioBuffer.length >= this.bufferSize) {
+      console.log('Buffer full, flushing...');
       this.flushAudioBuffer();
     }
   }
@@ -116,11 +120,8 @@ export class MeetingService {
   private flushAudioBuffer(): void {
     if (this.audioBuffer.length === 0) return;
 
-    // 合并所有音频数据
-    const combinedAudio = this.audioBuffer.join('');
-
-    // 通过WebSocket发送
-    WebSocketService.sendAudio(combinedAudio);
+    // 通过WebSocket发送整个数组（WebSocketService会正确合并）
+    WebSocketService.sendAudio(this.audioBuffer);
 
     // 清空缓冲区
     this.audioBuffer = [];
