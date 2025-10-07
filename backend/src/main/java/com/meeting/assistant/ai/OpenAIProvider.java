@@ -60,7 +60,8 @@ public class OpenAIProvider implements AIService {
                 }
             });
             body.add("model", "whisper-1");
-            body.add("language", "zh"); // 中文，可以改为 "en" 或自动检测
+            body.add("language", "zh"); // 中文
+            body.add("prompt", "请使用简体中文转录"); // 引导输出简体中文
 
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
