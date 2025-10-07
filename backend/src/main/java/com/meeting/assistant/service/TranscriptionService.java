@@ -29,6 +29,33 @@ public class TranscriptionService {
         Meeting meeting = meetingRepository.findById(meetingId)
             .orElseThrow(() -> new RuntimeException("Meeting not found: " + meetingId));
 
+        // 智能合并：检查是否应该与最近一条转录合并
+        List<Transcript> recentTranscripts = transcriptRepository
+            .findByMeetingIdOrderBySequenceOrderDesc(meetingId);
+
+        if (!recentTranscripts.isEmpty()) {
+            Transcript lastTranscript = recentTranscripts.get(0);
+
+            // 计算时间间隔（秒）
+            long secondsBetween = java.time.Duration.between(
+                lastTranscript.getTimestamp(),
+                timestamp
+            ).getSeconds();
+
+            // 如果间隔小于2秒，则合并（说话人识别在后续步骤处理）
+            // 目前简化处理：只要时间间隔短就合并
+            if (secondsBetween < 2) {
+                // 合并到上一条记录
+                String mergedContent = lastTranscript.getContent() + " " + content;
+                lastTranscript.setContent(mergedContent);
+                Transcript updated = transcriptRepository.save(lastTranscript);
+                log.info("Merged transcript into {} for meeting {} (interval: {}s)",
+                    updated.getId(), meetingId, secondsBetween);
+                return updated;
+            }
+        }
+
+        // 创建新的转录记录
         Transcript transcript = new Transcript();
         transcript.setMeeting(meeting);
         transcript.setContent(content);

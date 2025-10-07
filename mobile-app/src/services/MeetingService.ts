@@ -15,8 +15,6 @@ export interface Transcript {
 export class MeetingService {
   private meetingId: number | null = null;
   private isRecording = false;
-  private audioBuffer: string[] = [];
-  private bufferSize = 10; // 缓冲10段音频再发送（约1秒）
 
   /**
    * 开始新会议
@@ -53,16 +51,11 @@ export class MeetingService {
     try {
       this.isRecording = false;
 
-      // 停止录音
+      // 停止录音（原生层会自动发送剩余音频）
       await AudioCaptureService.stopRecording();
 
       // 移除音频监听
       AudioCaptureService.removeAudioDataListener();
-
-      // 发送剩余的音频数据
-      if (this.audioBuffer.length > 0) {
-        this.flushAudioBuffer();
-      }
 
       // 断开WebSocket
       WebSocketService.disconnect();
@@ -108,34 +101,15 @@ export class MeetingService {
 
   /**
    * 处理音频数据
+   * Android 原生层已经实现了 VAD，只在检测到静音停顿后才发送完整的语句
    */
   private handleAudioData(event: AudioDataEvent): void {
     if (!this.isRecording) return;
 
-    console.log(`Received audio chunk, length: ${event.length}, base64 length: ${event.audioData.length}`);
+    console.log(`Received audio segment after silence detection, length: ${event.length}`);
 
-    // 添加到缓冲区
-    this.audioBuffer.push(event.audioData);
-    console.log(`Buffer size: ${this.audioBuffer.length}/${this.bufferSize}`);
-
-    // 当缓冲区满时发送
-    if (this.audioBuffer.length >= this.bufferSize) {
-      console.log('Buffer full, flushing...');
-      this.flushAudioBuffer();
-    }
-  }
-
-  /**
-   * 发送缓冲区的音频数据
-   */
-  private flushAudioBuffer(): void {
-    if (this.audioBuffer.length === 0) return;
-
-    // 通过WebSocket发送整个数组（WebSocketService会正确合并）
-    WebSocketService.sendAudio(this.audioBuffer);
-
-    // 清空缓冲区
-    this.audioBuffer = [];
+    // 直接发送（原生层已经做了 VAD 检测和缓冲）
+    WebSocketService.sendAudio([event.audioData]);
   }
 
   /**

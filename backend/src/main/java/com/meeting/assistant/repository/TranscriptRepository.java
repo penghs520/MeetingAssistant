@@ -11,5 +11,7 @@ public interface TranscriptRepository extends JpaRepository<Transcript, Long> {
 
     List<Transcript> findByMeetingIdOrderBySequenceOrderAsc(Long meetingId);
 
+    List<Transcript> findByMeetingIdOrderBySequenceOrderDesc(Long meetingId);
+
     Integer countByMeetingId(Long meetingId);
 }
