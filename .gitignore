@@ -1,0 +1,38 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+
+# Backend (Spring Boot)
+backend/target/
+backend/.mvn/
+backend/mvnw
+backend/mvnw.cmd
+
+# Mobile App (React Native)
+mobile-app/node_modules/
+mobile-app/.pnpm-store/
+mobile-app/android/build/
+mobile-app/android/app/build/
+mobile-app/android/.gradle/
+mobile-app/android/local.properties
+mobile-app/android/app/debug.keystore
+mobile-app/metro-cache/
+mobile-app/.bundle/
+
+# Temporary files
+/tmp/
+*.tmp
