@@ -32,9 +32,15 @@ public class AudioStreamHandler extends BinaryWebSocketHandler {
     // 音频缓冲：每个session一个缓冲区
     private final Map<String, AudioBuffer> sessionAudioBuffers = new ConcurrentHashMap<>();
 
-    // 缓冲配置
-    private static final int BUFFER_SIZE_BYTES = 32000; // 约2秒的音频（16kHz, 16bit, mono）
-    private static final long BUFFER_TIMEOUT_MS = 3000; // 3秒超时
+    // 转录结果合并：每个session一个文本缓冲区
+    private final Map<String, TranscriptBuffer> sessionTranscriptBuffers = new ConcurrentHashMap<>();
+
+    // 缓冲配置（优化为更长的缓冲，确保完整句子）
+    private static final int BUFFER_SIZE_BYTES = 80000; // 约5秒的音频（16kHz, 16bit, mono）
+    private static final long BUFFER_TIMEOUT_MS = 4000; // 4秒超时（让 Android 发送 2.5 秒后有缓冲）
+
+    // 转录文本合并配置
+    private static final long TRANSCRIPT_MERGE_TIMEOUT_MS = 5000; // 5秒内的转录结果会合并（允许发言人停顿思考）
 
     // 音频缓冲类
     private static class AudioBuffer {
@@ -64,6 +70,55 @@ public class AudioStreamHandler extends BinaryWebSocketHandler {
 
         public synchronized int size() {
             return buffer.size();
+        }
+    }
+
+    // 转录文本合并缓冲类
+    private static class TranscriptBuffer {
+        private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TranscriptBuffer.class);
+        private final StringBuilder textBuffer = new StringBuilder();
+        private long lastUpdateTime = System.currentTimeMillis();
+
+        public synchronized void append(String text) {
+            if (text != null && !text.trim().isEmpty()) {
+                textBuffer.append(text);
+                lastUpdateTime = System.currentTimeMillis();
+            }
+        }
+
+        public synchronized String getAndClear() {
+            String text = textBuffer.toString().trim();
+            textBuffer.setLength(0);
+            lastUpdateTime = System.currentTimeMillis();
+            return text;
+        }
+
+        public synchronized boolean shouldFlush() {
+            String currentText = textBuffer.toString().trim();
+            if (currentText.isEmpty()) {
+                return false;
+            }
+
+            // 优先检查是否以句子结束符号结尾（中英文句号、问号、感叹号）
+            boolean endsWithPunctuation = currentText.endsWith("。") ||
+                                         currentText.endsWith("！") ||
+                                         currentText.endsWith("？") ||
+                                         currentText.endsWith(".") ||
+                                         currentText.endsWith("!") ||
+                                         currentText.endsWith("?");
+
+            // 如果有明确的句子结束符号，立即刷新
+            if (endsWithPunctuation) {
+                return true;
+            }
+
+            // 否则，只有超时才刷新（允许较长的停顿）
+            boolean timeout = (System.currentTimeMillis() - lastUpdateTime) > TRANSCRIPT_MERGE_TIMEOUT_MS;
+            return timeout;
+        }
+
+        public synchronized boolean isEmpty() {
+            return textBuffer.length() == 0;
         }
     }
 
@@ -151,24 +206,45 @@ public class AudioStreamHandler extends BinaryWebSocketHandler {
                     // 调用AI转录
                     String text = aiService.transcribe(bufferedAudio);
 
-                    // 保存转录结果
-                    Transcript transcript = transcriptionService.saveTranscript(
-                        meetingId,
-                        text,
-                        LocalDateTime.now()
+                    if (text == null || text.trim().isEmpty()) {
+                        log.debug("Empty transcription result, skipping");
+                        return;
+                    }
+
+                    // 获取或创建转录文本缓冲区
+                    TranscriptBuffer transcriptBuffer = sessionTranscriptBuffers.computeIfAbsent(
+                        session.getId(),
+                        k -> new TranscriptBuffer()
                     );
 
-                    // 构建响应
-                    Map<String, Object> response = new java.util.HashMap<>();
-                    response.put("type", "transcript");
-                    response.put("id", transcript.getId());
-                    response.put("content", text);
-                    response.put("timestamp", transcript.getTimestamp().toString());
-                    response.put("speakerId", transcript.getSpeaker() != null ? transcript.getSpeaker().getId() : null);
+                    // 将转录结果添加到文本缓冲区
+                    transcriptBuffer.append(text);
+                    log.info("Appended text to buffer for session {}: {}", session.getId(), text);
 
-                    // 推送给客户端
-                    session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
-                    log.info("Transcript sent to session {}", session.getId());
+                    // 检查是否应该刷新文本缓冲区
+                    if (transcriptBuffer.shouldFlush()) {
+                        String mergedText = transcriptBuffer.getAndClear();
+                        log.info("Flushing transcript buffer for session {}: {}", session.getId(), mergedText);
+
+                        // 保存合并后的转录结果
+                        Transcript transcript = transcriptionService.saveTranscript(
+                            meetingId,
+                            mergedText,
+                            LocalDateTime.now()
+                        );
+
+                        // 构建响应
+                        Map<String, Object> response = new java.util.HashMap<>();
+                        response.put("type", "transcript");
+                        response.put("id", transcript.getId());
+                        response.put("content", mergedText);
+                        response.put("timestamp", transcript.getTimestamp().toString());
+                        response.put("speakerId", transcript.getSpeaker() != null ? transcript.getSpeaker().getId() : null);
+
+                        // 推送给客户端
+                        session.sendMessage(new TextMessage(objectMapper.writeValueAsString(response)));
+                        log.info("Merged transcript sent to session {}: {}", session.getId(), mergedText);
+                    }
 
                 } catch (Exception e) {
                     log.error("Error processing audio", e);
@@ -190,8 +266,24 @@ public class AudioStreamHandler extends BinaryWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         log.info("WebSocket connection closed: {}, status: {}", session.getId(), status);
 
+        // 发送剩余的转录文本
+        TranscriptBuffer transcriptBuffer = sessionTranscriptBuffers.get(session.getId());
+        if (transcriptBuffer != null && !transcriptBuffer.isEmpty()) {
+            try {
+                String remainingText = transcriptBuffer.getAndClear();
+                Long meetingId = sessionMeetingMap.get(session.getId());
+                if (meetingId != null && !remainingText.isEmpty()) {
+                    log.info("Flushing remaining transcript on disconnect: {}", remainingText);
+                    transcriptionService.saveTranscript(meetingId, remainingText, LocalDateTime.now());
+                }
+            } catch (Exception e) {
+                log.error("Error flushing remaining transcript", e);
+            }
+        }
+
         // 清理缓冲区
         sessionAudioBuffers.remove(session.getId());
+        sessionTranscriptBuffers.remove(session.getId());
         sessionMeetingMap.remove(session.getId());
     }
 

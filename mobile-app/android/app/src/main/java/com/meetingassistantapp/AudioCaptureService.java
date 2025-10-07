@@ -43,7 +43,7 @@ public class AudioCaptureService extends Service {
     private AudioDataCallback callback;
 
     // 音频分段参数（移除 VAD，让 Whisper 自己处理噪音检测）
-    private static final int SEGMENT_DURATION_MS = 300;   // 每0.3秒发送一次音频
+    private static final int SEGMENT_DURATION_MS = 2500;   // 每2.5秒发送一次音频（足够说完整句话）
     private java.util.List<byte[]> audioBuffer = new java.util.ArrayList<>();
     private long segmentStartTime = System.currentTimeMillis();
 
