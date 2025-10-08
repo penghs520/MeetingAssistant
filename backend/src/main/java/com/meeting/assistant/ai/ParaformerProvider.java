@@ -45,15 +45,15 @@ public class ParaformerProvider implements AIService {
             // 调用 Paraformer 服务
             String transcribeUrl = paraformerServiceUrl + "/transcribe";
             ResponseEntity<Map> response = restTemplate.exchange(
-                transcribeUrl,
-                HttpMethod.POST,
-                requestEntity,
-                Map.class
+                    transcribeUrl,
+                    HttpMethod.POST,
+                    requestEntity,
+                    Map.class
             );
 
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                 String text = (String) response.getBody().get("text");
-                log.info("Transcription completed, text length: {}", text != null ? text.length() : 0);
+                log.info("Transcription completed, text length: {}, text: {}", text != null ? text.length() : 0, text);
                 return text != null ? text : "";
             } else {
                 throw new RuntimeException("Paraformer service returned unexpected response");
@@ -69,16 +69,16 @@ public class ParaformerProvider implements AIService {
         log.info("Generating meeting summary with GPT (using Paraformer for transcription)");
 
         String speakerNames = speakers.stream()
-            .map(Speaker::getName)
-            .collect(Collectors.joining(", "));
+                .map(Speaker::getName)
+                .collect(Collectors.joining(", "));
 
         String prompt = buildSummaryPrompt(transcript, speakerNames);
 
         try {
             String summary = chatClient.prompt()
-                .user(prompt)
-                .call()
-                .content();
+                    .user(prompt)
+                    .call()
+                    .content();
 
             log.info("Summary generated successfully");
             return summary;
@@ -95,42 +95,42 @@ public class ParaformerProvider implements AIService {
 
     private String buildSummaryPrompt(String transcript, String speakerNames) {
         return String.format("""
-            请根据以下会议转录内容生成结构化总结，使用简体中文输出：
-
-            参会人员：%s
-
-            转录内容：
-            %s
-
-            请按以下格式输出（使用Markdown格式，必须使用简体中文）：
-
-            ## 会议摘要
-            （用3-5句话概括整个会议的核心内容）
-
-            ## 关键讨论点
-            - 讨论点1
-            - 讨论点2
-            ...
-
-            ## 决策事项
-            - 决策1
-            - 决策2
-            ...
-
-            ## 待办任务 (Action Items)
-            - [ ] 任务1 - 负责人：XXX
-            - [ ] 任务2 - 负责人：XXX
-            ...
-
-            ## 各参会者主要发言
-            ### 参会者1
-            - 主要观点...
-
-            ### 参会者2
-            - 主要观点...
-            """,
-            speakerNames,
-            transcript
+                        请根据以下会议转录内容生成结构化总结，使用简体中文输出：
+                        
+                        参会人员：%s
+                        
+                        转录内容：
+                        %s
+                        
+                        请按以下格式输出（使用Markdown格式，必须使用简体中文）：
+                        
+                        ## 会议摘要
+                        （用3-5句话概括整个会议的核心内容）
+                        
+                        ## 关键讨论点
+                        - 讨论点1
+                        - 讨论点2
+                        ...
+                        
+                        ## 决策事项
+                        - 决策1
+                        - 决策2
+                        ...
+                        
+                        ## 待办任务 (Action Items)
+                        - [ ] 任务1 - 负责人：XXX
+                        - [ ] 任务2 - 负责人：XXX
+                        ...
+                        
+                        ## 各参会者主要发言
+                        ### 参会者1
+                        - 主要观点...
+                        
+                        ### 参会者2
+                        - 主要观点...
+                        """,
+                speakerNames,
+                transcript
         );
     }
 }
